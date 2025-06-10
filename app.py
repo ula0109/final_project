@@ -9,7 +9,7 @@ import os
 
 app = Flask(__name__)
 
-# === 讀取環境變數（建議用 Render 設定）===
+# 使用環境變數（請在 Render 設定）
 LINE_CHANNEL_ACCESS_TOKEN = 'HLuTgqylcDY6t20wEFfTKXonspRbYfmcbay/4c8mPi5xzknBtmh4lA8HJUpSEjZcFWXnJAFvXqNhuIQym69zVG TgnW16fITsnkulP9eAC7MHCa2O0n8vvKcNaeJ9dVyCsk6NrJnbfk56o7VFs21+nwdB04t89/1O/w1cDnyilFU='
 LINE_CHANNEL_SECRET = '216e320cbec53650dcddf1213a819201'
 GEMINI_API_KEY = 'AIzaSyDEsssaqNilIi66LhfpElF8aPyVspZjpug'
@@ -20,10 +20,10 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
 
-calendar_data = {}  # {'user_id': {'YYYY-MM-DD': ['行程1', '行程2']}}
+calendar_data = {}  # {'user_id': {'YYYY-MM-DD': ['事件']}}
 history = []
 
-# === 行事曆函式 ===
+# 行事曆處理函式
 def parse_calendar_input(text):
     match = re.match(r"(\d{1,2})[月/](\d{1,2})日?\s*(.+)", text)
     if match:
@@ -55,7 +55,6 @@ def delete_event(user_id, date_str, event_text=None):
         del user_calendar[date_str]
         return True, f"🗑️ 已刪除 {date_str} 所有行程"
 
-# === Webhook ===
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -73,41 +72,42 @@ def handle_message(event):
     today_str = datetime.now().strftime("%Y-%m-%d")
     history.append({'user': user_id, 'message': msg})
 
-    # === 指令提示 ===
+    # 指令範本提示
     if msg == "日曆":
         sample_text = (
             "🗓️ 行事曆使用範本：\n\n"
             "➕ 新增行程：\n"
-            "EX: 6月20日 看牙醫\n\n"
+            "6月20日 看牙醫\n\n"
             "🔍 查詢行程：\n"
-            "EX:今天有什麼行程？\n"
-            "EX:我6月20日有什麼事？\n"
-            "EX:6月（查詢整月）\n"
-            "EX:看牙醫（關鍵字搜尋）\n\n"
+            "今天有什麼行程？\n"
+            "我6月20日有什麼事？\n"
+            "6月（查詢整月）\n"
+            "看牙醫（關鍵字搜尋）\n"
+            "行程（查詢所有行程）\n\n"
             "🗑️ 刪除行程：\n"
-            "EX:刪除6月20日 看牙醫\n"
-            "EX:刪除6月20日全部\n"
-            "EX:刪除今天的行程"
+            "刪除6月20日 看牙醫\n"
+            "刪除6月20日全部\n"
+            "刪除今天的行程"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=sample_text))
         return
-    # === 輸入「行程」 → 顯示所有已記錄行程 ===
-if msg == "行程":
-    user_calendar = calendar_data.get(user_id, {})
-    all_events = []
-    for date_str, events in sorted(user_calendar.items()):
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
-        for event in events:
-            all_events.append(f"{dt.month}月{dt.day}日 {event}")
-    if all_events:
-        reply = "🗂️ 你目前記錄的所有行程：\n" + "\n".join(f"- {e}" for e in all_events)
-    else:
-        reply = "📭 你目前沒有記錄任何行程喔～"
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-    return
 
+    # 查詢所有行程
+    if msg == "行程":
+        user_calendar = calendar_data.get(user_id, {})
+        all_events = []
+        for date_str, events in sorted(user_calendar.items()):
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            for event in events:
+                all_events.append(f"{dt.month}月{dt.day}日 {event}")
+        reply = (
+            "🗂️ 你目前記錄的所有行程：\n" + "\n".join(f"- {e}" for e in all_events)
+            if all_events else "📭 你目前沒有記錄任何行程喔～"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
 
-    # === 查詢整個月份的行程 ===
+    # 查詢指定月份
     month_match = re.match(r"^(\d{1,2})月$", msg)
     if month_match:
         month = int(month_match.group(1))
@@ -118,14 +118,14 @@ if msg == "行程":
             if date_obj.month == month:
                 for event in events:
                     results.append(f"{date_obj.month}月{date_obj.day}日 {event}")
-        if results:
-            reply = f"📅 你在 {month} 月的行程有：\n" + "\n".join(f"- {r}" for r in results)
-        else:
-            reply = f"📭 你在 {month} 月沒有任何行程"
+        reply = (
+            f"📅 你在 {month} 月的行程有：\n" + "\n".join(f"- {r}" for r in results)
+            if results else f"📭 你在 {month} 月沒有任何行程"
+        )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 查詢關鍵字行程 ===
+    # 關鍵字查詢
     if len(msg) >= 2 and user_id in calendar_data:
         matched = []
         for date_str, events in calendar_data[user_id].items():
@@ -138,7 +138,7 @@ if msg == "行程":
             line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
             return
 
-    # === 新增行程 ===
+    # 新增行程
     date_str, event_content = parse_calendar_input(msg)
     if date_str and event_content:
         calendar_data.setdefault(user_id, {})
@@ -147,7 +147,7 @@ if msg == "行程":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 查詢今天行程 ===
+    # 查詢今天行程
     if msg in ["今天有什麼行程？", "今天要做什麼？"]:
         schedule = get_user_schedule(user_id, today_str)
         reply = (
@@ -157,7 +157,7 @@ if msg == "行程":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 查詢指定日期行程 ===
+    # 查詢特定日期
     match = re.match(r"我(\d{1,2})[月/](\d{1,2})日有什麼(行程|事)\？?", msg)
     if match:
         month, day = match.groups()[:2]
@@ -170,7 +170,7 @@ if msg == "行程":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 刪除行程 ===
+    # 刪除行程
     delete_match = re.match(r"刪除(\d{1,2})[月/](\d{1,2})日(.*)", msg)
     if delete_match:
         month, day, content = delete_match.groups()
@@ -188,7 +188,7 @@ if msg == "行程":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 傳統 LINE 功能 ===
+    # 媒體訊息
     if msg == "貼圖":
         line_bot_api.reply_message(event.reply_token, StickerSendMessage(package_id='1', sticker_id='1'))
         return
@@ -213,7 +213,7 @@ if msg == "行程":
         ))
         return
 
-    # === Gemini AI 回覆 ===
+    # Gemini AI 回覆
     try:
         response = model.generate_content(msg)
         ai_text = getattr(response, 'text', '⚠️ AI 沒有回應任何內容').strip()
@@ -223,7 +223,7 @@ if msg == "行程":
     history.append({'bot': ai_text})
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=ai_text))
 
-# === 可選：查詢歷史紀錄 API ===
+# 可選：查詢與清除歷史紀錄
 @app.route('/history', methods=['GET'])
 def get_history():
     return jsonify(history)
@@ -233,6 +233,6 @@ def delete_history():
     history.clear()
     return jsonify({"message": "history cleared"})
 
-# === 執行 Flask 開發伺服器（本機測試用）===
+# Flask 本地測試用
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
