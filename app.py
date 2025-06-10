@@ -15,7 +15,7 @@ app = Flask(__name__)
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
@@ -147,32 +147,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-        # === 查詢新聞 ===
-    if msg.startswith("新聞") or msg.endswith("新聞"):
-        keyword = msg.replace("新聞", "").strip() or "台灣"
-        api_key = os.getenv("NEWS_API_KEY")
-        if not api_key:
-            reply = "❌ 尚未設定新聞 API 金鑰"
-        else:
-            try:
-                url = (
-                    f"https://newsapi.org/v2/top-headlines?"
-                    f"q={keyword}&language=zh&apiKey={api_key}"
-                )
-                res = requests.get(url).json()
-                articles = res.get("articles", [])[:3]
-                if not articles:
-                    reply = f"找不到關於「{keyword}」的新聞。"
-                else:
-                    reply = f"📰 有關「{keyword}」的新聞：\n"
-                    for a in articles:
-                        title = a["title"]
-                        url = a["url"]
-                        reply += f"\n🔹 {title}\n👉 {url}\n"
-            except Exception as e:
-                reply = f"❌ 查詢新聞時發生錯誤：{e}"
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        return
+       
 
     # === Gemini AI 回覆 ===
     try:
