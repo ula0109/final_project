@@ -65,7 +65,7 @@ def callback():
         abort(400)
     return 'OK'
 
-@handler.add(MessageEvent)
+@handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     # ✅ 防止 event 格式錯誤
     if not hasattr(event, 'reply_token'):
