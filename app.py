@@ -6,6 +6,7 @@ import google.generativeai as genai
 from datetime import datetime
 import re
 import os
+import requests
 
 # Flask 初始化
 app = Flask(__name__)
@@ -143,6 +144,33 @@ def handle_message(event):
 
     if msg in ["刪除今天的行程", "刪除今天行程"]:
         success, reply = delete_event(user_id, today_str)
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+        # === 查詢新聞 ===
+    if msg.startswith("新聞") or msg.endswith("新聞"):
+        keyword = msg.replace("新聞", "").strip() or "台灣"
+        api_key = os.getenv("NEWS_API_KEY")
+        if not api_key:
+            reply = "❌ 尚未設定新聞 API 金鑰"
+        else:
+            try:
+                url = (
+                    f"https://newsapi.org/v2/top-headlines?"
+                    f"q={keyword}&language=zh&apiKey={api_key}"
+                )
+                res = requests.get(url).json()
+                articles = res.get("articles", [])[:3]
+                if not articles:
+                    reply = f"找不到關於「{keyword}」的新聞。"
+                else:
+                    reply = f"📰 有關「{keyword}」的新聞：\n"
+                    for a in articles:
+                        title = a["title"]
+                        url = a["url"]
+                        reply += f"\n🔹 {title}\n👉 {url}\n"
+            except Exception as e:
+                reply = f"❌ 查詢新聞時發生錯誤：{e}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
