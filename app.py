@@ -10,9 +10,9 @@ import os
 app = Flask(__name__)
 
 # 使用環境變數（請在 Render 設定）
-LINE_CHANNEL_ACCESS_TOKEN = 'HLuTgqylcDY6t20wEFfTKXonspRbYfmcbay/4c8mPi5xzknBtmh4lA8HJUpSEjZcFWXnJAFvXqNhuIQym69zVG TgnW16fITsnkulP9eAC7MHCa2O0n8vvKcNaeJ9dVyCsk6NrJnbfk56o7VFs21+nwdB04t89/1O/w1cDnyilFU='
-LINE_CHANNEL_SECRET = '216e320cbec53650dcddf1213a819201'
-GEMINI_API_KEY = 'AIzaSyDEsssaqNilIi66LhfpElF8aPyVspZjpug'
+LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
