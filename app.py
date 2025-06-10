@@ -95,6 +95,23 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=sample_text))
         return
 
+    
+    # 查詢所有行程
+    if msg == "行程":
+        user_calendar = calendar_data.get(user_id, {})
+        all_events = []
+        for date_str, events in sorted(user_calendar.items()):
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            for event in events:
+                all_events.append(f"{dt.month}月{dt.day}日 {event}")
+        reply = (
+            "🗂️ 你目前記錄的所有行程：\n" + "\n".join(f"- {e}" for e in all_events)
+            if all_events else "📭 你目前沒有記錄任何行程喔～"
+        )
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
+
+    
     # === 新增行程 ===
     date_str, event_content = parse_calendar_input(msg)
     if date_str and event_content:
