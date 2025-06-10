@@ -107,6 +107,14 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=sample_text))
         return
 
+    
+   # === 查詢今天新聞 ===
+     if msg == "新聞":
+     reply = get_yahoo_news()
+     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+     return
+
+
     # === 新增行程 ===
     date_str, event_content = parse_calendar_input(msg)
     if date_str and event_content:
@@ -126,13 +134,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 查詢今天新聞 ===
-    if msg == "新聞":
-    reply = get_yahoo_news()
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-    return
-
-
+  
     # === 查詢指定日期行程 ===
     match = re.match(r"我(\d{1,2})[月/](\d{1,2})日有什麼(行程|事)\？?", msg)
     if match:
