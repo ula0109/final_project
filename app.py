@@ -7,6 +7,7 @@ from datetime import datetime
 import re
 import os
 import requests
+import feedparser
 
 # Flask 初始化
 app = Flask(__name__)
@@ -27,6 +28,15 @@ model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
 # 行事曆與歷史紀錄
 calendar_data = {}  # {'user_id': {'YYYY-MM-DD': ['行程1', '行程2']}}
 history = []
+
+def get_yahoo_news():
+    feed = feedparser.parse("https://tw.news.yahoo.com/rss")
+    news_items = feed.entries[:3]
+    reply = "📰 今日 Yahoo 即時新聞：\n"
+    for item in news_items:
+        reply += f"\n🔹 {item.title}\n👉 {item.link}\n"
+    return reply
+
 
 # === 行事曆函式 ===
 
@@ -115,6 +125,13 @@ def handle_message(event):
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
+
+    # === 查詢今天新聞 ===
+    if msg == "新聞":
+    reply = get_yahoo_news()
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+    return
+
 
     # === 查詢指定日期行程 ===
     match = re.match(r"我(\d{1,2})[月/](\d{1,2})日有什麼(行程|事)\？?", msg)
