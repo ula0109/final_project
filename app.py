@@ -109,7 +109,7 @@ def handle_message(event):
 
     
    # === 查詢今天新聞 ===
-     if msg == "新聞":
+    if msg == "新聞":
      reply = get_yahoo_news()
      line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
      return
