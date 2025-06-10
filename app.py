@@ -113,20 +113,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # 關鍵字查詢
-    if len(msg) >= 2 and user_id in calendar_data:
-        matched = []
-        for date_str, events in calendar_data[user_id].items():
-            for event in events:
-                if msg in event:
-                    dt = datetime.strptime(date_str, "%Y-%m-%d")
-                    matched.append(f"{dt.month}月{dt.day}日 {event}")
-        if matched:
-            reply = f"🔍 找到與「{msg}」有關的行程：\n" + "\n".join(f"- {m}" for m in matched)
-            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-            return
-
-    
+   
     # === 新增行程 ===
     date_str, event_content = parse_calendar_input(msg)
     if date_str and event_content:
