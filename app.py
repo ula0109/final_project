@@ -14,6 +14,7 @@ app = Flask(__name__)
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
@@ -143,34 +144,6 @@ def handle_message(event):
     if msg in ["刪除今天的行程", "刪除今天行程"]:
         success, reply = delete_event(user_id, today_str)
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-        return
-
-    # === LINE 媒體訊息 ===
-    if msg == "貼圖":
-        line_bot_api.reply_message(event.reply_token, StickerSendMessage(package_id='1', sticker_id='1'))
-        return
-
-    if msg == "圖片":
-        line_bot_api.reply_message(event.reply_token, ImageSendMessage(
-            original_content_url="https://example.com/sample.jpg",
-            preview_image_url="https://example.com/sample.jpg"
-        ))
-        return
-
-    if msg == "影片":
-        line_bot_api.reply_message(event.reply_token, VideoSendMessage(
-            original_content_url="https://example.com/sample.mp4",
-            preview_image_url="https://example.com/preview.jpg"
-        ))
-        return
-
-    if msg == "位置":
-        line_bot_api.reply_message(event.reply_token, LocationSendMessage(
-            title="元智大學",
-            address="320桃園市中壢區遠東路135號",
-            latitude=24.970079,
-            longitude=121.267750
-        ))
         return
 
     # === Gemini AI 回覆 ===
