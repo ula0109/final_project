@@ -83,14 +83,16 @@ def handle_message(event):
         sample_text = (
             "🗓️ 行事曆使用範本：\n\n"
             "➕ 新增行程：\n"
-            "6月20日 看牙醫\n\n"
+            "EX:6月20日 看牙醫\n\n"
             "🔍 查詢行程：\n"
-            "今天有什麼行程？\n"
-            "我6月20日有什麼事？\n\n"
+            "EX:今天有什麼行程？\n"
+            "EX:我6月20日有什麼事？\n"
+            "EX:看牙醫（關鍵字搜尋）\n"
+            "EX:行程（查詢所有行程）\n\n"
             "🗑️ 刪除行程：\n"
-            "刪除6月20日 看牙醫\n"
-            "刪除6月20日全部\n"
-            "刪除今天的行程"
+            "EX:刪除6月20日 看牙醫\n"
+            "EX:刪除6月20日全部\n"
+            "EX:刪除今天的行程"
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=sample_text))
         return
@@ -110,6 +112,19 @@ def handle_message(event):
         )
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
+
+    # 關鍵字查詢
+    if len(msg) >= 2 and user_id in calendar_data:
+        matched = []
+        for date_str, events in calendar_data[user_id].items():
+            for event in events:
+                if msg in event:
+                    dt = datetime.strptime(date_str, "%Y-%m-%d")
+                    matched.append(f"{dt.month}月{dt.day}日 {event}")
+        if matched:
+            reply = f"🔍 找到與「{msg}」有關的行程：\n" + "\n".join(f"- {m}" for m in matched)
+            line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+            return
 
     
     # === 新增行程 ===
