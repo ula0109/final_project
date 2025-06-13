@@ -8,27 +8,42 @@ import re
 import os
 import requests
 import feedparser
+import json
 
-# Flask 初始化
+# === Flask 初始化 ===
 app = Flask(__name__)
 
-# 環境變數讀取（建議從 Render 設定）
+# === 環境變數 ===
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# Gemini 初始化
+# === Gemini 初始化 ===
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel(model_name="models/gemini-1.5-pro-latest")
 
-# 行事曆與歷史紀錄
-calendar_data = {}  # {'user_id': {'YYYY-MM-DD': ['行程1', '行程2']}}
-history = []
+# === JSON 儲存檔案 ===
+CALENDAR_FILE = 'calendar_data.json'
+HISTORY_FILE = 'history.json'
 
+# === 讀取 JSON 檔案 ===
+def load_json_file(filename, default):
+    if os.path.exists(filename):
+        with open(filename, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return default
+
+def save_json_file(filename, data):
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+calendar_data = load_json_file(CALENDAR_FILE, {})
+history = load_json_file(HISTORY_FILE, [])
+
+# === Yahoo 新聞 ===
 def get_yahoo_news():
     feed = feedparser.parse("https://tw.news.yahoo.com/rss")
     news_items = feed.entries[:3]
@@ -37,9 +52,7 @@ def get_yahoo_news():
         reply += f"\n🔹 {item.title}\n👉 {item.link}\n"
     return reply
 
-
 # === 行事曆函式 ===
-
 def parse_calendar_input(text):
     match = re.match(r"(\d{1,2})[月/](\d{1,2})日?\s*(.+)", text)
     if match:
@@ -64,15 +77,16 @@ def delete_event(user_id, date_str, event_text=None):
             user_calendar[date_str].remove(event_text)
             if not user_calendar[date_str]:
                 del user_calendar[date_str]
+            save_json_file(CALENDAR_FILE, calendar_data)
             return True, f"🗑️ 已刪除 {date_str} 的「{event_text}」"
         except ValueError:
             return False, f"❌ 找不到「{event_text}」在 {date_str}"
     else:
         del user_calendar[date_str]
+        save_json_file(CALENDAR_FILE, calendar_data)
         return True, f"🗑️ 已刪除 {date_str} 所有行程"
 
-# === LINE Bot Webhook ===
-
+# === Webhook 路由 ===
 @app.route("/callback", methods=['POST'])
 def callback():
     signature = request.headers['X-Line-Signature']
@@ -83,14 +97,15 @@ def callback():
         abort(400)
     return 'OK'
 
+# === LINE Bot 主邏輯 ===
 @handler.add(MessageEvent)
 def handle_message(event):
     user_id = event.source.user_id
     msg = event.message.text.strip()
     today_str = datetime.now().strftime("%Y-%m-%d")
     history.append({'user': user_id, 'message': msg})
+    save_json_file(HISTORY_FILE, history)
 
-    # === 指令提示 ===
     if msg == "日曆":
         sample_text = (
             "🗓️ 行事曆使用範本：\n\n"
@@ -107,24 +122,22 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=sample_text))
         return
 
-    
-   # === 查詢今天新聞 ===
     if msg == "新聞":
-     reply = get_yahoo_news()
-     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
-     return
+        reply = get_yahoo_news()
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
+        return
 
-
-    # === 新增行程 ===
+    # 新增行程
     date_str, event_content = parse_calendar_input(msg)
     if date_str and event_content:
         calendar_data.setdefault(user_id, {})
         calendar_data[user_id].setdefault(date_str, []).append(event_content)
+        save_json_file(CALENDAR_FILE, calendar_data)
         reply = f"✅ 已幫你記下 {date_str}：{event_content}"
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 查詢今天行程 ===
+    # 查詢今天行程
     if msg in ["今天有什麼行程？", "今天要做什麼？"]:
         schedule = get_user_schedule(user_id, today_str)
         reply = (
@@ -134,8 +147,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-  
-    # === 查詢指定日期行程 ===
+    # 查詢特定日行程
     match = re.match(r"我(\d{1,2})[月/](\d{1,2})日有什麼(行程|事)\？?", msg)
     if match:
         month, day = match.groups()[:2]
@@ -148,7 +160,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-    # === 刪除行程 ===
+    # 刪除行程
     delete_match = re.match(r"刪除(\d{1,2})[月/](\d{1,2})日(.*)", msg)
     if delete_match:
         month, day, content = delete_match.groups()
@@ -166,9 +178,7 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply))
         return
 
-       
-
-    # === Gemini AI 回覆 ===
+    # Gemini AI 回覆
     try:
         response = model.generate_content(msg)
         ai_text = getattr(response, 'text', '⚠️ AI 沒有回應任何內容').strip()
@@ -176,10 +186,10 @@ def handle_message(event):
         ai_text = f"❌ AI 發生錯誤：{str(e)}"
 
     history.append({'bot': ai_text})
+    save_json_file(HISTORY_FILE, history)
     line_bot_api.reply_message(event.reply_token, TextSendMessage(text=ai_text))
 
-# === 可選：查詢/清除歷史紀錄 API ===
-
+# === API 查看與清除歷史紀錄 ===
 @app.route('/history', methods=['GET'])
 def get_history():
     return jsonify(history)
@@ -187,9 +197,9 @@ def get_history():
 @app.route('/history', methods=['DELETE'])
 def delete_history():
     history.clear()
+    save_json_file(HISTORY_FILE, history)
     return jsonify({"message": "history cleared"})
 
-# === 執行 Flask 應用 ===
-
+# === 啟動 Flask 伺服器 ===
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
